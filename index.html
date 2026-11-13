@@ -14,11 +14,12 @@
 body{margin:0;background:#F7F7F9}
 a{color:#2A6F97}a:hover{color:#1B4D6E}
 button{font:inherit}
-.cal-main{display:grid;grid-template-columns:200px minmax(0,1fr) 400px;gap:16px;min-height:0;padding:16px 24px 24px}
+.cal-main{display:grid;grid-template-columns:200px minmax(0,1fr) 400px;gap:16px;min-height:0;padding:16px 24px 24px;transition:grid-template-columns .35s ease}
 .cal-main.pmin{grid-template-columns:200px minmax(0,1fr) 52px}
 .ev:hover{filter:brightness(.97)}
 .lnk{background:none;border:0;padding:0;color:#2A6F97;font-weight:600;text-decoration:underline;text-underline-offset:2px;cursor:pointer}
 .lnk:hover{color:#1B4D6E}
+@keyframes dcsweep{0%{transform:translateX(-75%);opacity:.1}50%{opacity:.5}100%{transform:translateX(115%);opacity:0}}
 @keyframes dcburst{0%{transform:translate(0,0) scale(.4) rotate(0);opacity:1}70%{opacity:1}100%{transform:translate(var(--dx),var(--dy)) scale(1) rotate(90deg);opacity:0}}
 @keyframes dcpulse{50%{background-color:rgba(42,111,151,.24)}}
 @media (max-width:1280px){.cal-main{grid-template-columns:minmax(0,1fr) 380px}.cal-main.pmin{grid-template-columns:minmax(0,1fr) 52px}.cal-side{display:none!important}}
@@ -73,7 +74,7 @@ button{font:inherit}
 <span style="font-weight: 600; font-size: 16px">Calendar</span>
 <label class="cal-search" style="flex: 1; max-width: 460px; margin-left: 24px"><span style="position:absolute;left:-9999px">Search</span><input placeholder="Search" style="width: 100%; box-sizing: border-box; background: rgba(255,255,255,.14); border: 1px solid rgba(255,255,255,.25); border-radius: 4px; color: #FFFFFF; padding: 6px 10px; font: inherit"></label>
 <span style="flex: 1"></span>
-<button class="d-only" onClick="{{togglePanel}}" aria-pressed="{{panelOpen}}" style="{{pillStyle}}"><svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0l1.6 4.4L14 6l-4.4 1.6L8 12 6.4 7.6 2 6l4.4-1.6zM13 10l.8 2.2L16 13l-2.2.8L13 16l-.8-2.2L10 13l2.2-.8z"></path></svg>Assistant</button>
+
 <span title="Alex Rivera" style="width: 30px; height: 30px; border-radius: 50%; background: #2A6F97; border: 2px solid rgba(255,255,255,.6); display: grid; place-items: center; font-size: 12px; font-weight: 600; box-sizing: border-box">AR</span>
 </header>
 
@@ -176,7 +177,8 @@ button{font:inherit}
 </sc-if>
 </section>
 
-<section class="cal-panel" aria-label="Calendar Cleaner" style="font-size: calc(14px * var(--fs, 1)); background: #FFFFFF; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); display: flex; flex-direction: column; min-height: 0; align-self: start; max-height: 100%; overflow: hidden; position: relative">
+<section class="cal-panel" aria-label="Calendar Cleaner" style="font-size: calc(14px * var(--fs, 1)); background: #FFFFFF; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); display: flex; flex-direction: column; min-height: 0; align-self: start; max-height: 100%; overflow: hidden; position: relative; isolation: isolate">
+<sc-if value="{{sweep}}" hint-placeholder-val="{{ false }}"><div aria-hidden="true" style="position: absolute; top: -20%; bottom: -20%; left: 0; width: 100%; z-index: -1; pointer-events: none; animation: dcsweep 1s ease-in-out both"><div class="band-a" style="position: absolute; top: 0; bottom: 0; left: 0; width: 35%; background: #D6E4EE; transform: skewX(-20deg)"></div><div class="band-b" style="position: absolute; top: 0; bottom: 0; left: 45%; width: 17.5%; background: #D6E4EE; transform: skewX(-20deg)"></div></div><div aria-hidden="true" style="position: absolute; top: -20%; bottom: -20%; left: 0; width: 100%; z-index: -1; pointer-events: none; animation: dcsweep 1s ease-in-out .5s both"><div class="band-a" style="position: absolute; top: 0; bottom: 0; left: 0; width: 35%; background: #D6E4EE; transform: skewX(-20deg)"></div><div class="band-b" style="position: absolute; top: 0; bottom: 0; left: 45%; width: 17.5%; background: #D6E4EE; transform: skewX(-20deg)"></div></div></sc-if>
 
 <sc-if value="{{panelMin}}" hint-placeholder-val="{{ false }}">
 <button onClick="{{togglePanel}}" aria-label="Open assistant" title="Open assistant" style="display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 14px 0; background: none; border: 0; height: 100%; width: 100%; color: #1B4D6E; cursor: pointer">
@@ -418,13 +420,17 @@ class Component extends DCLogic {
   constructor(props) {
     super(props);
     this.state = this.freshState();
+    // Start with the panel closed, then open it 1s after the page finishes loading.
+    // After slide-on finishes (.35s), a 1s specular sweep crosses the panel background.
+    const openSoon = () => setTimeout(() => { this.setState({ panelMin: false }); setTimeout(() => { this.setState({ sweep: true }); setTimeout(() => this.setState({ sweep: false }), 1500); }, 350); }, 1000);
+    if (typeof document === 'undefined' || document.readyState === 'complete') openSoon(); else window.addEventListener('load', openSoon, { once: true });
     // Mobile promo toast, 2s after load, only if the overlay isn't open yet.
     setTimeout(() => { if (!this.state.mOpen) this.setState({ promo: true }); }, 2000);
   }
 
   freshState() {
     return {
-      step: 0, maxStep: 0, sel: null, editing: null, draft: null, panelMin: false, hoursOpen: false,
+      step: 0, maxStep: 0, sel: null, editing: null, draft: null, panelMin: true, hoursOpen: false,
       open: { rec: true, gate: true, never: false, more: false }, heldOpen: false, peekId: null,
       hoverRule: null, showChanges: true, sent: false, finalIds: [], curIds: null, recs: {}, toast: '', chipDraft: '', burst: null, mOpen: false, promo: false,
       prefs: {
@@ -905,7 +911,7 @@ class Component extends DCLogic {
     const openMobile = () => { if (this.state.step === 3) this.go(2); this.setState({ mOpen: true, promo: false, panelMin: false }); };
 
     return Object.assign({
-      hasBurst: !!S.burst, burst: S.burst || { style: '', parts: [] }, minLabel: isMobile() ? 'Close' : 'Minimize', mOpen: S.mOpen, closeMobile: () => this.setState({ mOpen: false }), agendaDays, mWeek, mWeekHead: ['S', 'M', 'T', 'W', 'T', 'F', 'S'], mFab: !(S.promo && !S.mOpen),
+      sweep: !!S.sweep && !S.panelMin, hasBurst: !!S.burst, burst: S.burst || { style: '', parts: [] }, minLabel: isMobile() ? 'Close' : 'Minimize', mOpen: S.mOpen, closeMobile: () => this.setState({ mOpen: false }), agendaDays, mWeek, mWeekHead: ['S', 'M', 'T', 'W', 'T', 'F', 'S'], mFab: !(S.promo && !S.mOpen),
       mainClass: 'cal-main' + (S.panelMin ? ' pmin' : '') + (S.mOpen ? ' mopen' : ''), openMobile, promo: S.promo && !S.mOpen, panelMin: S.panelMin, panelOpen: !S.panelMin, togglePanel,
       pillStyle: 'display:inline-flex;align-items:center;gap:6px;border-radius:16px;padding:4px 12px;font-size:calc(13px*var(--fs,1));cursor:pointer;border:1px solid ' + (S.panelMin ? 'rgba(255,255,255,.28);background:rgba(255,255,255,.14);color:#FFFFFF' : '#FFFFFF;background:#FFFFFF;color:#1B4D6E'),
       railStep: 'Step ' + Math.min(S.step + 1, 3) + ' of 3',
@@ -916,7 +922,7 @@ class Component extends DCLogic {
       agentLine: 'Read ' + L.M.length + ' meetings and your teammates’ free time from Outlook. Claude checked each one against your rules.',
       steps, isIntro: S.step === 0, isPrefs: S.step === 1, isRecs: S.step === 2, isFinal: S.step === 3,
       toPrefs: () => this.go(1), toIntro: () => this.go(0), toRecs: () => this.go(2), toRecs2: () => this.go(2),
-      restart: () => this.setState(Object.assign(this.freshState(), { prefs: this.state.prefs, mOpen: this.state.mOpen })),
+      restart: () => this.setState(Object.assign(this.freshState(), { prefs: this.state.prefs, mOpen: this.state.mOpen, panelMin: this.state.panelMin })),
       // prefs
       openHours: () => this.setState({ hoursOpen: true }), closeHours: () => this.setState({ hoursOpen: false }), hoursOpen: S.hoursOpen && S.step === 1,
       hoursSummary: L.fmtShort(P.start) + '–' + L.fmtShort(P.end) + ' · New York',
